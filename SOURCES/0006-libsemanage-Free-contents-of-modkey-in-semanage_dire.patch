@@ -1,0 +1,31 @@
+From e14a8a078b2cfecb0498ff98ddff08403b3be1cd Mon Sep 17 00:00:00 2001
+From: Jakub Hrozek <jhrozek@redhat.com>
+Date: Thu, 17 Dec 2020 15:59:49 +0100
+Subject: [PATCH] libsemanage: Free contents of modkey in
+ semanage_direct_remove
+
+semanage_direct_remove allocates struct semanage_module_key_t on
+stack, then calls semanage_module_key_set_name which allocates
+modkey->name on heap, but modkey->name wasn't free()-d anywhere,
+creating a small leak.
+
+Signed-off-by: Jakub Hrozek <jhrozek@redhat.com>
+---
+ libsemanage/src/direct_api.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/libsemanage/src/direct_api.c b/libsemanage/src/direct_api.c
+index b037890a..c32939c0 100644
+--- a/libsemanage/src/direct_api.c
++++ b/libsemanage/src/direct_api.c
+@@ -1944,6 +1944,7 @@ static int semanage_direct_remove(semanage_handle_t * sh, char *module_name)
+ 	status = semanage_direct_remove_key(sh, &modkey);
+ 
+ cleanup:
++	semanage_module_key_destroy(sh, &modkey);
+ 	return status;
+ }
+ 
+-- 
+2.30.2
+

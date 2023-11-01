@@ -1,0 +1,42 @@
+From 30da7a4907893bd43fe9da40728a3bcabdf3d7a4 Mon Sep 17 00:00:00 2001
+From: Petr Lautrbach <plautrba@redhat.com>
+Date: Wed, 28 Jul 2021 11:21:35 +0200
+Subject: [PATCH] libsemanage: Fix USE_AFTER_FREE (CWE-672) in
+ semanage_direct_write_langext()
+
+>From fclose(3):
+Upon successful completion, 0 is returned.  Otherwise, EOF is returned
+and errno is set to indicate the error. In either case, any further
+access (including another call to fclose()) to the stream results in
+undefined behavior.
+
+Fixes:
+    Error: USE_AFTER_FREE (CWE-672): [#def1]
+    libsemanage-3.2/src/direct_api.c:1023: freed_arg: "fclose" frees "fp".
+    libsemanage-3.2/src/direct_api.c:1034: use_closed_file: Calling "fclose" uses file handle "fp" after closing it.
+    # 1032|
+    # 1033|   cleanup:
+    # 1034|-> 	if (fp != NULL) fclose(fp);
+    # 1035|
+    # 1036|   	return ret;
+
+Signed-off-by: Petr Lautrbach <plautrba@redhat.com>
+---
+ libsemanage/src/direct_api.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/libsemanage/src/direct_api.c b/libsemanage/src/direct_api.c
+index c32939c0..7638653a 100644
+--- a/libsemanage/src/direct_api.c
++++ b/libsemanage/src/direct_api.c
+@@ -1022,6 +1022,7 @@ static int semanage_direct_write_langext(semanage_handle_t *sh,
+ 
+ 	if (fclose(fp) != 0) {
+ 		ERR(sh, "Unable to close %s module ext file.", modinfo->name);
++		fp = NULL;
+ 		ret = -1;
+ 		goto cleanup;
+ 	}
+-- 
+2.30.2
+

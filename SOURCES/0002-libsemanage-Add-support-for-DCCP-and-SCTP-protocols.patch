@@ -1,0 +1,48 @@
+From d68976d353bf334c43fd084f9cc4535874860006 Mon Sep 17 00:00:00 2001
+From: Vit Mojzis <vmojzis@redhat.com>
+Date: Tue, 8 Oct 2019 14:22:12 +0200
+Subject: [PATCH] libsemanage: Add support for DCCP and SCTP protocols
+
+This is necessary for "semanage port" to be able to handle DCCP and SCTP
+protocols.
+
+Fixes:
+    "port_parse" only handles TCP and UDP protocols
+
+Signed-off-by: Vit Mojzis <vmojzis@redhat.com>
+---
+ libsemanage/include/semanage/port_record.h | 2 ++
+ libsemanage/src/ports_file.c               | 4 ++++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/libsemanage/include/semanage/port_record.h b/libsemanage/include/semanage/port_record.h
+index 20ae4bd9..71074800 100644
+--- a/libsemanage/include/semanage/port_record.h
++++ b/libsemanage/include/semanage/port_record.h
+@@ -16,6 +16,8 @@ typedef struct semanage_port_key semanage_port_key_t;
+ 
+ #define SEMANAGE_PROTO_UDP 0
+ #define SEMANAGE_PROTO_TCP 1
++#define SEMANAGE_PROTO_DCCP 2
++#define SEMANAGE_PROTO_SCTP 3
+ 
+ /* Key */
+ extern int semanage_port_compare(const semanage_port_t * port,
+diff --git a/libsemanage/src/ports_file.c b/libsemanage/src/ports_file.c
+index 46ee2f00..4738d467 100644
+--- a/libsemanage/src/ports_file.c
++++ b/libsemanage/src/ports_file.c
+@@ -84,6 +84,10 @@ static int port_parse(semanage_handle_t * handle,
+ 		semanage_port_set_proto(port, SEMANAGE_PROTO_TCP);
+ 	else if (!strcasecmp(str, "udp"))
+ 		semanage_port_set_proto(port, SEMANAGE_PROTO_UDP);
++	else if (!strcasecmp(str, "dccp"))
++		semanage_port_set_proto(port, SEMANAGE_PROTO_DCCP);
++	else if (!strcasecmp(str, "sctp"))
++		semanage_port_set_proto(port, SEMANAGE_PROTO_SCTP);
+ 	else {
+ 		ERR(handle, "invalid protocol \"%s\" (%s: %u):\n%s", str,
+ 		    info->filename, info->lineno, info->orig_line);
+-- 
+2.21.0
+
