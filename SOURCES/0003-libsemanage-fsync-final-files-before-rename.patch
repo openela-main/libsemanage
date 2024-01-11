@@ -1,0 +1,156 @@
+From dc4f1d03d6e17d851283f9b10b2faeeca9b10e14 Mon Sep 17 00:00:00 2001
+From: Stephen Smalley <stephen.smalley.work@gmail.com>
+Date: Wed, 13 May 2020 15:34:19 -0400
+Subject: [PATCH] libsemanage: fsync final files before rename
+
+Prior to rename(2)'ing the final selinux policy files into place,
+fsync(2) them to ensure the contents will be fully written prior to
+rename.  While we are here, also fix checking of write(2) to detect
+short writes and treat them as an error.  This code could be more
+generally improved but keeping to the minimal changes required to fix
+this bug.
+
+Fixes: https://github.com/SELinuxProject/selinux/issues/237
+Signed-off-by: Stephen Smalley <stephen.smalley.work@gmail.com>
+Acked-by: Nicolas Iooss <nicolas.iooss@m4x.org>
+
+Source:
+https://github.com/SELinuxProject/selinux/commit/331a109f91ea46473fd858c2494f6eab1ef43f66
+---
+ libsemanage/src/direct_api.c     | 10 +++++-----
+ libsemanage/src/semanage_store.c | 20 +++++++++++++++-----
+ libsemanage/src/semanage_store.h |  4 +++-
+ 3 files changed, 23 insertions(+), 11 deletions(-)
+
+diff --git a/libsemanage/src/direct_api.c b/libsemanage/src/direct_api.c
+index 8e4d116d..abc3a4cb 100644
+--- a/libsemanage/src/direct_api.c
++++ b/libsemanage/src/direct_api.c
+@@ -1188,7 +1188,7 @@ cleanup:
+  * overwrite it. If source doesn't exist then return success.
+  * Returns 0 on success, -1 on error. */
+ static int copy_file_if_exists(const char *src, const char *dst, mode_t mode){
+-	int rc = semanage_copy_file(src, dst, mode);
++	int rc = semanage_copy_file(src, dst, mode, false);
+ 	return (rc < 0 && errno != ENOENT) ? rc : 0;
+ }
+ 
+@@ -1481,7 +1481,7 @@ rebuild:
+ 			retval = semanage_copy_file(path,
+ 						    semanage_path(SEMANAGE_TMP,
+ 								  SEMANAGE_STORE_SEUSERS),
+-						    0);
++						    0, false);
+ 			if (retval < 0)
+ 				goto cleanup;
+ 			pseusers->dtable->drop_cache(pseusers->dbase);
+@@ -1499,7 +1499,7 @@ rebuild:
+ 			retval = semanage_copy_file(path,
+ 						    semanage_path(SEMANAGE_TMP,
+ 								  SEMANAGE_USERS_EXTRA),
+-						    0);
++						    0, false);
+ 			if (retval < 0)
+ 				goto cleanup;
+ 			pusers_extra->dtable->drop_cache(pusers_extra->dbase);
+@@ -1588,7 +1588,7 @@ rebuild:
+ 
+ 	retval = semanage_copy_file(semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_KERNEL),
+ 			semanage_final_path(SEMANAGE_FINAL_TMP, SEMANAGE_KERNEL),
+-			sh->conf->file_mode);
++			sh->conf->file_mode, false);
+ 	if (retval < 0) {
+ 		goto cleanup;
+ 	}
+@@ -1627,7 +1627,7 @@ rebuild:
+ 			retval = semanage_copy_file(
+ 						semanage_path(SEMANAGE_TMP, SEMANAGE_STORE_FC_HOMEDIRS),
+ 						semanage_final_path(SEMANAGE_FINAL_TMP,	SEMANAGE_FC_HOMEDIRS),
+-						sh->conf->file_mode);
++						sh->conf->file_mode, false);
+ 			if (retval < 0) {
+ 				goto cleanup;
+ 			}
+diff --git a/libsemanage/src/semanage_store.c b/libsemanage/src/semanage_store.c
+index 58dded6e..733df8da 100644
+--- a/libsemanage/src/semanage_store.c
++++ b/libsemanage/src/semanage_store.c
+@@ -707,7 +707,8 @@ static int semanage_filename_select(const struct dirent *d)
+ 
+ /* Copies a file from src to dst.  If dst already exists then
+  * overwrite it.  Returns 0 on success, -1 on error. */
+-int semanage_copy_file(const char *src, const char *dst, mode_t mode)
++int semanage_copy_file(const char *src, const char *dst, mode_t mode,
++		bool syncrequired)
+ {
+ 	int in, out, retval = 0, amount_read, n, errsv = errno;
+ 	char tmp[PATH_MAX];
+@@ -735,8 +736,11 @@ int semanage_copy_file(const char *src, const char *dst, mode_t mode)
+ 	}
+ 	umask(mask);
+ 	while (retval == 0 && (amount_read = read(in, buf, sizeof(buf))) > 0) {
+-		if (write(out, buf, amount_read) < 0) {
+-			errsv = errno;
++		if (write(out, buf, amount_read) != amount_read) {
++			if (errno)
++				errsv = errno;
++			else
++				errsv = EIO;
+ 			retval = -1;
+ 		}
+ 	}
+@@ -745,6 +749,10 @@ int semanage_copy_file(const char *src, const char *dst, mode_t mode)
+ 		retval = -1;
+ 	}
+ 	close(in);
++	if (syncrequired && fsync(out) < 0) {
++		errsv = errno;
++		retval = -1;
++	}
+ 	if (close(out) < 0) {
+ 		errsv = errno;
+ 		retval = -1;
+@@ -811,7 +819,8 @@ static int semanage_copy_dir_flags(const char *src, const char *dst, int flag)
+ 			umask(mask);
+ 		} else if (S_ISREG(sb.st_mode) && flag == 1) {
+ 			mask = umask(0077);
+-			if (semanage_copy_file(path, path2, sb.st_mode) < 0) {
++			if (semanage_copy_file(path, path2, sb.st_mode,
++						false) < 0) {
+ 				umask(mask);
+ 				goto cleanup;
+ 			}
+@@ -1640,7 +1649,8 @@ static int semanage_install_final_tmp(semanage_handle_t * sh)
+ 			goto cleanup;
+ 		}
+ 
+-		ret = semanage_copy_file(src, dst, sh->conf->file_mode);
++		ret = semanage_copy_file(src, dst, sh->conf->file_mode,
++					true);
+ 		if (ret < 0) {
+ 			ERR(sh, "Could not copy %s to %s.", src, dst);
+ 			goto cleanup;
+diff --git a/libsemanage/src/semanage_store.h b/libsemanage/src/semanage_store.h
+index 34bf8523..b9ec5664 100644
+--- a/libsemanage/src/semanage_store.h
++++ b/libsemanage/src/semanage_store.h
+@@ -24,6 +24,7 @@
+ #ifndef SEMANAGE_MODULE_STORE_H
+ #define SEMANAGE_MODULE_STORE_H
+ 
++#include <stdbool.h>
+ #include <sys/time.h>
+ #include <sepol/module.h>
+ #include <sepol/cil/cil.h>
+@@ -162,6 +163,7 @@ int semanage_nc_sort(semanage_handle_t * sh,
+ 		     size_t buf_len,
+ 		     char **sorted_buf, size_t * sorted_buf_len);
+ 
+-int semanage_copy_file(const char *src, const char *dst, mode_t mode);
++int semanage_copy_file(const char *src, const char *dst, mode_t mode,
++		bool syncrequired);
+ 
+ #endif
+-- 
+2.25.4
+

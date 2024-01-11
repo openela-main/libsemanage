@@ -1,0 +1,37 @@
+From ecf6e6a9fda1a28cc3df36841b44326ed0c12312 Mon Sep 17 00:00:00 2001
+From: Ondrej Mosnacek <omosnace@redhat.com>
+Date: Thu, 3 Feb 2022 17:53:22 +0100
+Subject: [PATCH] libsemanage: add missing include to boolean_record.c
+
+It uses asprintf(3), but doesn't directly include <stdio.h> - fix it.
+
+Signed-off-by: Ondrej Mosnacek <omosnace@redhat.com>
+---
+ libsemanage/src/boolean_record.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/libsemanage/src/boolean_record.c b/libsemanage/src/boolean_record.c
+index c234094e..bdddfa23 100644
+--- a/libsemanage/src/boolean_record.c
++++ b/libsemanage/src/boolean_record.c
+@@ -7,6 +7,9 @@
+  */
+ 
+ #include <string.h>
++#include <stdio.h>
++#include <stdlib.h>
++
+ #include <sepol/boolean_record.h>
+ #include "handle_internal.h"
+ 
+@@ -21,7 +24,6 @@ typedef semanage_bool_key_t record_key_t;
+ #include "boolean_internal.h"
+ #include "handle.h"
+ #include "database.h"
+-#include <stdlib.h>
+ #include <selinux/selinux.h>
+ 
+ /* Key */
+-- 
+2.30.2
+

@@ -1,0 +1,59 @@
+From 330b6efa010b3dac732beb49c98894a99dab0545 Mon Sep 17 00:00:00 2001
+From: Ondrej Mosnacek <omosnace@redhat.com>
+Date: Wed, 8 Jun 2022 19:09:53 +0200
+Subject: [PATCH] libsemanage: always write kernel policy when
+ check_ext_changes is specified
+
+For the use case of rebuilding the policy after package updates, we need
+the check_ext_changes operation to always do at least the do_write_kernel
+step, because the various semanage dbs may have also changed content
+relative to the current binary policy. As this step is itself relatively
+fast, we can do it unconditionally.
+
+Fixes: 286a679fadc4 ("libsemanage: optionally rebuild policy when modules are changed externally")
+Signed-off-by: Ondrej Mosnacek <omosnace@redhat.com>
+Acked-by: Nicolas Iooss <nicolas.iooss@m4x.org>
+---
+ libsemanage/include/semanage/handle.h | 2 +-
+ libsemanage/src/direct_api.c          | 8 +++++---
+ 2 files changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/libsemanage/include/semanage/handle.h b/libsemanage/include/semanage/handle.h
+index 7f298a49..df919a14 100644
+--- a/libsemanage/include/semanage/handle.h
++++ b/libsemanage/include/semanage/handle.h
+@@ -67,7 +67,7 @@ void semanage_set_reload(semanage_handle_t * handle, int do_reload);
+ void semanage_set_rebuild(semanage_handle_t * handle, int do_rebuild);
+ 
+ /* set whether to rebuild the policy on commit when potential changes
+- * to module files since last rebuild are detected,
++ * to store files since last rebuild are detected,
+  * 1 for yes (default), 0 for no */
+ extern void semanage_set_check_ext_changes(semanage_handle_t * handle, int do_check);
+ 
+diff --git a/libsemanage/src/direct_api.c b/libsemanage/src/direct_api.c
+index bbdca2b2..252fc5bb 100644
+--- a/libsemanage/src/direct_api.c
++++ b/libsemanage/src/direct_api.c
+@@ -1430,13 +1430,15 @@ static int semanage_direct_commit(semanage_handle_t * sh)
+ 	 * Determine what else needs to be done.
+ 	 * We need to write the kernel policy if we are rebuilding
+ 	 * or if any other policy component that lives in the kernel
+-	 * policy has been modified.
++	 * policy has been modified. We also want to force it when
++	 * check_ext_changes was specified as the various dbases may have
++	 * changes as well.
+ 	 * We need to install the policy files if any of the managed files
+ 	 * that live under /etc/selinux (kernel policy, seusers, file contexts)
+ 	 * will be modified.
+ 	 */
+-	do_write_kernel = do_rebuild | ports_modified | ibpkeys_modified |
+-		ibendports_modified |
++	do_write_kernel = do_rebuild | sh->check_ext_changes |
++		ports_modified | ibpkeys_modified | ibendports_modified |
+ 		bools->dtable->is_modified(bools->dbase) |
+ 		ifaces->dtable->is_modified(ifaces->dbase) |
+ 		nodes->dtable->is_modified(nodes->dbase) |
+-- 
+2.37.3
+

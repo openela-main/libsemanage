@@ -1,0 +1,55 @@
+From 11e381e5aa3468aa5c2634f14706336c7824f226 Mon Sep 17 00:00:00 2001
+From: Petr Lautrbach <plautrba@redhat.com>
+Date: Wed, 27 Jan 2021 12:00:55 +0100
+Subject: [PATCH] libsemanage: sync filesystem with sandbox
+
+Commit 331a109f91ea ("libsemanage: fsync final files before rename")
+added fsync() for policy files and improved situation when something
+unexpected happens right after rename(). However the module store could
+be affected as well. After the following steps module files could be 0
+size:
+
+1. Run `semanage fcontext -a -t var_t "/tmp/abc"`
+2. Force shutdown the server during the command is run, or right after
+   it's finished
+3. Boot the system and look for empty files:
+    # find /var/lib/selinux/targeted/ -type f -size 0 | wc -l
+    1266
+
+It looks like this situation can be avoided if the filesystem with the
+sandbox is sync()ed before we start to rename() directories in the
+store.
+
+Signed-off-by: Petr Lautrbach <plautrba@redhat.com>
+Acked-by: Nicolas Iooss <nicolas.iooss@m4x.org>
+---
+ libsemanage/src/semanage_store.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/libsemanage/src/semanage_store.c b/libsemanage/src/semanage_store.c
+index 733df8da37c2..ae023582e907 100644
+--- a/libsemanage/src/semanage_store.c
++++ b/libsemanage/src/semanage_store.c
+@@ -1737,6 +1737,19 @@ static int semanage_commit_sandbox(semanage_handle_t * sh)
+ 	}
+ 	close(fd);
+ 
++	/* sync changes in sandbox to filesystem */
++	fd = open(sandbox, O_DIRECTORY);
++	if (fd == -1) {
++		ERR(sh, "Error while opening %s for syncfs(): %d", sandbox, errno);
++		return -1;
++	}
++	if (syncfs(fd) == -1) {
++		ERR(sh, "Error while syncing %s to filesystem: %d", sandbox, errno);
++		close(fd);
++		return -1;
++	}
++	close(fd);
++
+ 	retval = commit_number;
+ 
+ 	if (semanage_get_active_lock(sh) < 0) {
+-- 
+2.30.0
+
