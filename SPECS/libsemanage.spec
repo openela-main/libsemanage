@@ -1,16 +1,17 @@
-%define libsepolver 3.5-1
-%define libselinuxver 3.5-1
+%define libsepolver 3.6-1
+%define libselinuxver 3.6-1
 
 Summary: SELinux binary policy manipulation library
 Name: libsemanage
-Version: 3.5
-Release: 2%{?dist}
+Version: 3.6
+Release: 1%{?dist}
 License: LGPLv2+
-Source0: https://github.com/SELinuxProject/selinux/releases/download/3.5/libsemanage-3.5.tar.gz
-# fedora-selinux/selinux: git checkout c9s; git format-patch -N 3.5 -- libsemanage
+Source0: https://github.com/SELinuxProject/selinux/releases/download/3.6/libsemanage-3.6.tar.gz
+# fedora-selinux/selinux: git checkout c9s; git format-patch -N 3.6 -- libsemanage
 # i=1; for j in 00*patch; do printf "Patch%04d: %s\n" $i $j; i=$((i+1));done
 # Patch list start
-Patch0001: 0001-libsemanage-include-more-parameters-in-the-module-ch.patch
+Patch0001: 0001-Revert-Do-not-automatically-install-Russian-translat.patch
+Patch0002: 0002-Revert-libsemanage-Remove-the-Russian-translations.patch
 # Patch list end
 URL: https://github.com/SELinuxProject/selinux/wiki
 Source1: semanage.conf
@@ -154,6 +155,12 @@ cp %{SOURCE1} ${RPM_BUILD_ROOT}%{_sysconfdir}/selinux/semanage.conf
 %{_libexecdir}/selinux/semanage_migrate_store
 
 %changelog
+* Wed Dec 13 2023 Petr Lautrbach <lautrbach@redhat.com> - 3.6-1
+- SELinux userspace 3.6 release
+
+* Mon Nov 13 2023 Petr Lautrbach <lautrbach@redhat.com> - 3.6-0.rc1.1
+- SELinux userspace 3.6-rc1 release
+
 * Wed Mar 22 2023 Petr Lautrbach <lautrbach@redhat.com> - 3.5-2
 - Include more parameters in the module checksum (#2173959)
 
