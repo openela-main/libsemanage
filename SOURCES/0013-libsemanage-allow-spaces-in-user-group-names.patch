@@ -1,0 +1,361 @@
+From f4a0e563dfff91d308d1738bbabdddc9ab672098 Mon Sep 17 00:00:00 2001
+From: Vit Mojzis <vmojzis@redhat.com>
+Date: Thu, 17 Feb 2022 13:49:23 +0100
+Subject: [PATCH] libsemanage: allow spaces in user/group names
+
+"semanage login -a" accepts whitespaces in user/group name
+(e.g. users/groups from Active Directory), which may lead to issues down
+the line since libsemanage doesn't expect whitespaces in
+/var/lib/selinux/targeted/active/seusers and other config files.
+
+Fixes:
+  Artificial but simple reproducer
+  # groupadd server_admins
+  # sed -i "s/^server_admins/server admins/" /etc/group
+  # semanage login -a -s staff_u %server\ admins
+  # semanage login -l  (or "semodule -B")
+  libsemanage.parse_assert_ch: expected character ':', but found 'a' (/var/lib/selinux/targeted/active/seusers: 6):
+  %server admins:staff_u:s0-s0:c0.c1023 (No such file or directory).
+  libsemanage.seuser_parse: could not parse seuser record (No such file or directory).
+  libsemanage.dbase_file_cache: could not cache file database (No such file or directory).
+  libsemanage.enter_ro: could not enter read-only section (No such file or directory).
+  FileNotFoundError: [Errno 2] No such file or directory
+
+Signed-off-by: Vit Mojzis <vmojzis@redhat.com>
+---
+ libsemanage/src/booleans_file.c    |  2 +-
+ libsemanage/src/fcontexts_file.c   |  6 +++---
+ libsemanage/src/ibendports_file.c  |  4 ++--
+ libsemanage/src/ibpkeys_file.c     |  4 ++--
+ libsemanage/src/interfaces_file.c  |  6 +++---
+ libsemanage/src/nodes_file.c       |  8 ++++----
+ libsemanage/src/parse_utils.c      |  6 +++---
+ libsemanage/src/parse_utils.h      | 11 +++++------
+ libsemanage/src/ports_file.c       |  4 ++--
+ libsemanage/src/seusers_file.c     |  6 +++---
+ libsemanage/src/users_base_file.c  |  7 +++----
+ libsemanage/src/users_extra_file.c |  4 ++--
+ 12 files changed, 33 insertions(+), 35 deletions(-)
+
+diff --git a/libsemanage/src/booleans_file.c b/libsemanage/src/booleans_file.c
+index f79d0b44..6d600bbc 100644
+--- a/libsemanage/src/booleans_file.c
++++ b/libsemanage/src/booleans_file.c
+@@ -48,7 +48,7 @@ static int bool_parse(semanage_handle_t * handle,
+ 		goto last;
+ 
+ 	/* Extract name */
+-	if (parse_fetch_string(handle, info, &str, '=') < 0)
++	if (parse_fetch_string(handle, info, &str, '=', 0) < 0)
+ 		goto err;
+ 
+ 	if (semanage_bool_set_name(handle, boolean, str) < 0)
+diff --git a/libsemanage/src/fcontexts_file.c b/libsemanage/src/fcontexts_file.c
+index 1e596519..ad177208 100644
+--- a/libsemanage/src/fcontexts_file.c
++++ b/libsemanage/src/fcontexts_file.c
+@@ -91,7 +91,7 @@ static int fcontext_parse(semanage_handle_t * handle,
+ 		goto last;
+ 
+ 	/* Regexp */
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (semanage_fcontext_set_expr(handle, fcontext, str) < 0)
+ 		goto err;
+@@ -101,7 +101,7 @@ static int fcontext_parse(semanage_handle_t * handle,
+ 	/* Type */
+ 	if (parse_assert_space(handle, info) < 0)
+ 		goto err;
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (!strcasecmp(str, "-s"))
+ 		semanage_fcontext_set_type(fcontext, SEMANAGE_FCONTEXT_SOCK);
+@@ -125,7 +125,7 @@ static int fcontext_parse(semanage_handle_t * handle,
+ 	/* Context */
+ 	if (parse_assert_space(handle, info) < 0)
+ 		goto err;
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 
+       process_context:
+diff --git a/libsemanage/src/ibendports_file.c b/libsemanage/src/ibendports_file.c
+index 402c7a5e..47a62429 100644
+--- a/libsemanage/src/ibendports_file.c
++++ b/libsemanage/src/ibendports_file.c
+@@ -76,7 +76,7 @@ static int ibendport_parse(semanage_handle_t *handle,
+ 		goto err;
+ 
+ 	/* IB Device Name */
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (semanage_ibendport_set_ibdev_name(handle, ibendport, str) < 0)
+ 		goto err;
+@@ -93,7 +93,7 @@ static int ibendport_parse(semanage_handle_t *handle,
+ 	/* context */
+ 	if (parse_assert_space(handle, info) < 0)
+ 		goto err;
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (semanage_context_from_string(handle, str, &con) < 0) {
+ 		ERR(handle, "invalid security context \"%s\" (%s: %u)\n%s",
+diff --git a/libsemanage/src/ibpkeys_file.c b/libsemanage/src/ibpkeys_file.c
+index ceaea7ad..5424e279 100644
+--- a/libsemanage/src/ibpkeys_file.c
++++ b/libsemanage/src/ibpkeys_file.c
+@@ -81,7 +81,7 @@ static int ibpkey_parse(semanage_handle_t *handle,
+ 		goto err;
+ 
+ 	/* Subnet Prefix */
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (semanage_ibpkey_set_subnet_prefix(handle, ibpkey, str) < 0)
+ 		goto err;
+@@ -116,7 +116,7 @@ static int ibpkey_parse(semanage_handle_t *handle,
+ 		semanage_ibpkey_set_pkey(ibpkey, low);
+ 	}
+ 	/* Pkey context */
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (semanage_context_from_string(handle, str, &con) < 0) {
+ 		ERR(handle, "invalid security context \"%s\" (%s: %u)\n%s",
+diff --git a/libsemanage/src/interfaces_file.c b/libsemanage/src/interfaces_file.c
+index 1478af97..b105f807 100644
+--- a/libsemanage/src/interfaces_file.c
++++ b/libsemanage/src/interfaces_file.c
+@@ -73,7 +73,7 @@ static int iface_parse(semanage_handle_t * handle,
+ 		goto err;
+ 
+ 	/* Name */
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (semanage_iface_set_name(handle, iface, str) < 0)
+ 		goto err;
+@@ -83,7 +83,7 @@ static int iface_parse(semanage_handle_t * handle,
+ 	/* Interface context */
+ 	if (parse_assert_space(handle, info) < 0)
+ 		goto err;
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (semanage_context_from_string(handle, str, &con) < 0) {
+ 		ERR(handle, "invalid security context \"%s\" (%s: %u)\n%s",
+@@ -107,7 +107,7 @@ static int iface_parse(semanage_handle_t * handle,
+ 	/* Message context */
+ 	if (parse_assert_space(handle, info) < 0)
+ 		goto err;
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (semanage_context_from_string(handle, str, &con) < 0) {
+ 		ERR(handle, "invalid security context \"%s\" (%s: %u)\n%s",
+diff --git a/libsemanage/src/nodes_file.c b/libsemanage/src/nodes_file.c
+index f6c8895d..922355dd 100644
+--- a/libsemanage/src/nodes_file.c
++++ b/libsemanage/src/nodes_file.c
+@@ -78,7 +78,7 @@ static int node_parse(semanage_handle_t * handle,
+ 		goto err;
+ 
+ 	/* Protocol */
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (!strcasecmp(str, "ipv4"))
+ 		proto = SEMANAGE_PROTO_IP4;
+@@ -97,7 +97,7 @@ static int node_parse(semanage_handle_t * handle,
+ 	/* Address */
+ 	if (parse_assert_space(handle, info) < 0)
+ 		goto err;
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (semanage_node_set_addr(handle, node, proto, str) < 0)
+ 		goto err;
+@@ -107,7 +107,7 @@ static int node_parse(semanage_handle_t * handle,
+ 	str = NULL;
+ 
+ 	/* Netmask */
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (semanage_node_set_mask(handle, node, proto, str) < 0)
+ 		goto err;
+@@ -117,7 +117,7 @@ static int node_parse(semanage_handle_t * handle,
+ 	str = NULL;
+ 
+ 	/* Port context */
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (semanage_context_from_string(handle, str, &con) < 0) {
+ 		ERR(handle, "invalid security context \"%s\" (%s: %u)\n%s",
+diff --git a/libsemanage/src/parse_utils.c b/libsemanage/src/parse_utils.c
+index 4fb54fc3..918dee43 100644
+--- a/libsemanage/src/parse_utils.c
++++ b/libsemanage/src/parse_utils.c
+@@ -239,7 +239,7 @@ int parse_fetch_int(semanage_handle_t * handle,
+ 	char *test = NULL;
+ 	int value = 0;
+ 
+-	if (parse_fetch_string(handle, info, &str, delim) < 0)
++	if (parse_fetch_string(handle, info, &str, delim, 0) < 0)
+ 		goto err;
+ 
+ 	if (!isdigit((int)*str)) {
+@@ -267,7 +267,7 @@ int parse_fetch_int(semanage_handle_t * handle,
+ }
+ 
+ int parse_fetch_string(semanage_handle_t * handle,
+-		       parse_info_t * info, char **str, char delim)
++		       parse_info_t * info, char **str, char delim, int allow_spaces)
+ {
+ 
+ 	char *start = info->ptr;
+@@ -277,7 +277,7 @@ int parse_fetch_string(semanage_handle_t * handle,
+ 	if (parse_assert_noeof(handle, info) < 0)
+ 		goto err;
+ 
+-	while (*(info->ptr) && !isspace(*(info->ptr)) &&
++	while (*(info->ptr) && (allow_spaces || !isspace(*(info->ptr))) &&
+ 	       (*(info->ptr) != delim)) {
+ 		info->ptr++;
+ 		len++;
+diff --git a/libsemanage/src/parse_utils.h b/libsemanage/src/parse_utils.h
+index 0f334860..3e44aca1 100644
+--- a/libsemanage/src/parse_utils.h
++++ b/libsemanage/src/parse_utils.h
+@@ -71,12 +71,11 @@ extern int parse_optional_str(parse_info_t * info, const char *str);
+ int parse_fetch_int(semanage_handle_t * hgandle,
+ 		    parse_info_t * info, int *num, char delim);
+ 
+-/* Extract the next string (delimited by 
+- * whitespace), and move the read pointer past it.
+- * Stop of the optional character delim is encountered,
+- * or if whitespace/eof is encountered. Fail if the
+- * string is of length 0. */
++/* Extract the next string and move the read pointer past it.
++ * Stop if the optional character delim (or eof) is encountered,
++ * or if whitespace is encountered and allow_spaces is 0.
++ * Fail if the string is of length 0. */
+ extern int parse_fetch_string(semanage_handle_t * handle,
+-			      parse_info_t * info, char **str_ptr, char delim);
++			      parse_info_t * info, char **str_ptr, char delim, int allow_spaces);
+ 
+ #endif
+diff --git a/libsemanage/src/ports_file.c b/libsemanage/src/ports_file.c
+index 4738d467..0c151089 100644
+--- a/libsemanage/src/ports_file.c
++++ b/libsemanage/src/ports_file.c
+@@ -78,7 +78,7 @@ static int port_parse(semanage_handle_t * handle,
+ 		goto err;
+ 
+ 	/* Protocol */
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (!strcasecmp(str, "tcp"))
+ 		semanage_port_set_proto(port, SEMANAGE_PROTO_TCP);
+@@ -124,7 +124,7 @@ static int port_parse(semanage_handle_t * handle,
+ 		semanage_port_set_port(port, low);
+ 
+ 	/* Port context */
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (semanage_context_from_string(handle, str, &con) < 0) {
+ 		ERR(handle, "invalid security context \"%s\" (%s: %u)\n%s",
+diff --git a/libsemanage/src/seusers_file.c b/libsemanage/src/seusers_file.c
+index 910bedf4..21b970ac 100644
+--- a/libsemanage/src/seusers_file.c
++++ b/libsemanage/src/seusers_file.c
+@@ -53,7 +53,7 @@ static int seuser_parse(semanage_handle_t * handle,
+ 		goto last;
+ 
+ 	/* Extract name */
+-	if (parse_fetch_string(handle, info, &str, ':') < 0)
++	if (parse_fetch_string(handle, info, &str, ':', 1) < 0)
+ 		goto err;
+ 	if (semanage_seuser_set_name(handle, seuser, str) < 0)
+ 		goto err;
+@@ -68,7 +68,7 @@ static int seuser_parse(semanage_handle_t * handle,
+ 		goto err;
+ 
+ 	/* Extract sename */
+-	if (parse_fetch_string(handle, info, &str, ':') < 0)
++	if (parse_fetch_string(handle, info, &str, ':', 1) < 0)
+ 		goto err;
+ 	if (semanage_seuser_set_sename(handle, seuser, str) < 0)
+ 		goto err;
+@@ -83,7 +83,7 @@ static int seuser_parse(semanage_handle_t * handle,
+ 		goto err;
+ 
+ 	/* NOTE: does not allow spaces/multiline */
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 
+ 	if (semanage_seuser_set_mlsrange(handle, seuser, str) < 0)
+diff --git a/libsemanage/src/users_base_file.c b/libsemanage/src/users_base_file.c
+index 0f0a8fdb..a0f8cd7e 100644
+--- a/libsemanage/src/users_base_file.c
++++ b/libsemanage/src/users_base_file.c
+@@ -83,7 +83,7 @@ static int user_base_parse(semanage_handle_t * handle,
+ 		goto err;
+ 
+ 	/* Parse user name */
+-	if (parse_fetch_string(handle, info, &name_str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &name_str, ' ', 0) < 0)
+ 		goto err;
+ 
+ 	if (semanage_user_base_set_name(handle, user, name_str) < 0) {
+@@ -150,7 +150,7 @@ static int user_base_parse(semanage_handle_t * handle,
+ 		goto err;
+ 
+ 	/* NOTE: does not allow spaces/multiline */
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (semanage_user_base_set_mlslevel(handle, user, str) < 0)
+ 		goto err;
+@@ -165,8 +165,7 @@ static int user_base_parse(semanage_handle_t * handle,
+ 	if (parse_assert_space(handle, info) < 0)
+ 		goto err;
+ 
+-	/* NOTE: does not allow spaces/multiline */
+-	if (parse_fetch_string(handle, info, &str, ';') < 0)
++	if (parse_fetch_string(handle, info, &str, ';', 1) < 0)
+ 		goto err;
+ 	if (semanage_user_base_set_mlsrange(handle, user, str) < 0)
+ 		goto err;
+diff --git a/libsemanage/src/users_extra_file.c b/libsemanage/src/users_extra_file.c
+index 8f2bebd6..7aa9df3c 100644
+--- a/libsemanage/src/users_extra_file.c
++++ b/libsemanage/src/users_extra_file.c
+@@ -57,7 +57,7 @@ static int user_extra_parse(semanage_handle_t * handle,
+ 		goto err;
+ 
+ 	/* Extract name */
+-	if (parse_fetch_string(handle, info, &str, ' ') < 0)
++	if (parse_fetch_string(handle, info, &str, ' ', 0) < 0)
+ 		goto err;
+ 	if (semanage_user_extra_set_name(handle, user_extra, str) < 0)
+ 		goto err;
+@@ -73,7 +73,7 @@ static int user_extra_parse(semanage_handle_t * handle,
+ 		goto err;
+ 
+ 	/* Extract prefix */
+-	if (parse_fetch_string(handle, info, &str, ';') < 0)
++	if (parse_fetch_string(handle, info, &str, ';', 1) < 0)
+ 		goto err;
+ 	if (semanage_user_extra_set_prefix(handle, user_extra, str) < 0)
+ 		goto err;
+-- 
+2.35.3
+

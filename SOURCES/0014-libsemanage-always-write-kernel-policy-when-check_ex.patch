@@ -1,4 +1,4 @@
-From 330b6efa010b3dac732beb49c98894a99dab0545 Mon Sep 17 00:00:00 2001
+From db81de97febc8c79bfe7c54f57ae313cc5ba0728 Mon Sep 17 00:00:00 2001
 From: Ondrej Mosnacek <omosnace@redhat.com>
 Date: Wed, 8 Jun 2022 19:09:53 +0200
 Subject: [PATCH] libsemanage: always write kernel policy when
@@ -55,5 +55,5 @@ index bbdca2b2..252fc5bb 100644
  		ifaces->dtable->is_modified(ifaces->dbase) |
  		nodes->dtable->is_modified(nodes->dbase) |
 -- 
-2.37.3
+2.35.3
 
