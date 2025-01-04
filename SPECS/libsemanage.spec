@@ -4,7 +4,7 @@
 Summary: SELinux binary policy manipulation library
 Name: libsemanage
 Version: 3.6
-Release: 1%{?dist}
+Release: 2.1%{?dist}
 License: LGPLv2+
 Source0: https://github.com/SELinuxProject/selinux/releases/download/3.6/libsemanage-3.6.tar.gz
 # fedora-selinux/selinux: git checkout c9s; git format-patch -N 3.6 -- libsemanage
@@ -12,6 +12,7 @@ Source0: https://github.com/SELinuxProject/selinux/releases/download/3.6/libsema
 # Patch list start
 Patch0001: 0001-Revert-Do-not-automatically-install-Russian-translat.patch
 Patch0002: 0002-Revert-libsemanage-Remove-the-Russian-translations.patch
+Patch0004: 0004-libsemanage-open-lock_file-with-O_RDWR.patch
 # Patch list end
 URL: https://github.com/SELinuxProject/selinux/wiki
 Source1: semanage.conf
@@ -155,6 +156,9 @@ cp %{SOURCE1} ${RPM_BUILD_ROOT}%{_sysconfdir}/selinux/semanage.conf
 %{_libexecdir}/selinux/semanage_migrate_store
 
 %changelog
+* Fri Nov 08 2024 Petr Lautrbach <lautrbach@redhat.com> - 3.6-2.1
+- open lock_file with O_RDWR (RHEL-60503)
+
 * Wed Dec 13 2023 Petr Lautrbach <lautrbach@redhat.com> - 3.6-1
 - SELinux userspace 3.6 release
 

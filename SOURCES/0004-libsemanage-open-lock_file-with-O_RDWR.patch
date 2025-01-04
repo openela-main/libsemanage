@@ -1,0 +1,46 @@
+From b23d81a2cc4cb500fb864dd5c9e867d23bf2c8b5 Mon Sep 17 00:00:00 2001
+From: Petr Lautrbach <lautrbach@redhat.com>
+Date: Thu, 7 Nov 2024 16:40:51 +0100
+Subject: [PATCH] libsemanage: open lock_file with O_RDWR
+Content-type: text/plain
+
+man 2 flock:
+    Since Linux 2.6.12, NFS clients support flock() locks by emulating
+    them as fcntl(2) byte-range locks on the entire file.  This means
+    that fcntl(2) and  flock()  locks  do  interact with one another
+    over NFS.  It also means that in order to place an exclusive lock,
+    the file must be opened for writing.
+
+Signed-off-by: Petr Lautrbach <lautrbach@redhat.com>
+---
+ libsemanage/src/semanage_store.c | 14 ++++++--------
+ 1 file changed, 6 insertions(+), 8 deletions(-)
+
+diff --git a/libsemanage/src/semanage_store.c b/libsemanage/src/semanage_store.c
+index 0ac2e5b2ad39..c26f5667b3cd 100644
+--- a/libsemanage/src/semanage_store.c
++++ b/libsemanage/src/semanage_store.c
+@@ -1899,14 +1899,12 @@ static int semanage_get_lock(semanage_handle_t * sh,
+ 	struct timeval origtime, curtime;
+ 	int got_lock = 0;
+ 
+-	if ((fd = open(lock_file, O_RDONLY)) == -1) {
+-		if ((fd =
+-		     open(lock_file, O_RDWR | O_CREAT | O_TRUNC,
+-			  S_IRUSR | S_IWUSR)) == -1) {
+-			ERR(sh, "Could not open direct %s at %s.", lock_name,
+-			    lock_file);
+-			return -1;
+-		}
++	if ((fd =
++	     open(lock_file, O_RDWR | O_CREAT | O_TRUNC,
++		  S_IRUSR | S_IWUSR)) == -1) {
++		ERR(sh, "Could not open direct %s at %s.", lock_name,
++		    lock_file);
++		return -1;
+ 	}
+ 	if (fcntl(fd, F_SETFD, FD_CLOEXEC) < 0) {
+ 		ERR(sh, "Could not set close-on-exec for %s at %s.", lock_name,
+-- 
+2.47.0
+
