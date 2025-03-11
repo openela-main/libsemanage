@@ -1,10 +1,10 @@
 %define libsepolver 2.9-1
-%define libselinuxver 2.9-1
+%define libselinuxver 2.9-10
 
 Summary: SELinux binary policy manipulation library 
 Name: libsemanage
 Version: 2.9
-Release: 10%{?dist}
+Release: 11%{?dist}
 License: LGPLv2+
 Source0: https://github.com/SELinuxProject/selinux/releases/download/20190315/libsemanage-2.9.tar.gz
 # i=1; for j in 00*patch; do printf "Patch%04d: %s\n" $i $j; i=$((i+1));done
@@ -23,6 +23,8 @@ Patch0012: 0012-libsemanage-optionally-rebuild-policy-when-modules-a.patch
 Patch0013: 0013-libsemanage-allow-spaces-in-user-group-names.patch
 Patch0014: 0014-libsemanage-always-write-kernel-policy-when-check_ex.patch
 Patch0015: 0015-libsemanage-Preserve-file-context-and-ownership-in-p.patch
+Patch0016: 0016-libsemanage-Mute-error-messages-from-selinux_restore.patch
+Patch0017: 0017-libsemanage-Set-new-restorecon-handle-before-doing-r.patch
 
 URL: https://github.com/SELinuxProject/selinux/wiki
 Source1: semanage.conf
@@ -169,6 +171,10 @@ rm %{buildroot}%{_libexecdir}/selinux/semanage_migrate_store~
 %{_libexecdir}/selinux/semanage_migrate_store
 
 %changelog
+* Fri Jan 24 2025 Petr Lautrbach <lautrbach@redhat.com> - 2.9-11
+- Set new restorecon handle before doing restorecon (RHEL-73348)
+- Mute error messages from selinux_restorecon
+
 * Mon Jul 29 2024 Vit Mojzis <vmojzis@redhat.com> - 2.9-10
 - Preserve file context and ownership in policy store (RHEL-17509)
 

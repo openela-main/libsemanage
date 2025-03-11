@@ -1,0 +1,37 @@
+From 6d5a1d424508f9554e92d6aac5eeca424503d028 Mon Sep 17 00:00:00 2001
+From: James Carter <jwcart2@gmail.com>
+Date: Wed, 22 Jan 2025 10:58:28 -0500
+Subject: [PATCH] libsemanage: Set new restorecon handle before doing
+ restorecon
+Content-type: text/plain
+
+In semanage_setfiles(), need to reset the restorecon handle to make
+sure restorecon is not operating on old selabel data.
+
+Signed-off-by: James Carter <jwcart2@gmail.com>
+---
+ libsemanage/src/semanage_store.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/libsemanage/src/semanage_store.c b/libsemanage/src/semanage_store.c
+index 29abbd0e6b6f..33b950ff5451 100644
+--- a/libsemanage/src/semanage_store.c
++++ b/libsemanage/src/semanage_store.c
+@@ -3023,9 +3023,14 @@ log_callback_mute(__attribute__((unused)) int type, __attribute__((unused)) cons
+ void semanage_setfiles(const char *path){
+ 	struct stat sb;
+ 	int fd;
++	struct selabel_handle *sehandle;
++
+ 	union selinux_callback cb_orig = selinux_get_callback(SELINUX_CB_LOG);
+ 	union selinux_callback cb = { .func_log = log_callback_mute };
+ 
++	sehandle = selinux_restorecon_default_handle();
++	selinux_restorecon_set_sehandle(sehandle);
++
+ 	/* Mute all logs */
+ 	selinux_set_callback(SELINUX_CB_LOG, cb);
+ 
+-- 
+2.48.1
+
