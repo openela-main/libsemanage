@@ -1,0 +1,78 @@
+From 8fbcce101a3c53444af48f766ff77f82f32cff29 Mon Sep 17 00:00:00 2001
+From: Petr Lautrbach <lautrbach@redhat.com>
+Date: Mon, 24 Feb 2025 18:09:58 +0100
+Subject: [PATCH] libsemanage: improve performance of semanage store rebuild
+Content-type: text/plain
+
+Commit 9d107ab77ba4 ("libsemanage: Set new restorecon handle before doing restorecon
+") added reopeniong selabel handle every time semanage_setfiles() is
+called. It means that during `semodule -B`, `selabel_close()` and
+`selabel_open()` could be called more than 1800x what could have a
+significant performance impact.
+
+It should be enough to reopen selabel handle just after semanage commit
+when changes are applied.
+
+Before 9d107ab77ba4:
+    # time semodule -B
+    real    0m5.067s
+    user    0m4.675s
+    sys     0m0.279s
+
+After 9d107ab77ba4:
+    # time semodule -B
+    real    0m11.176s
+    user    0m10.535s
+    sys     0m0.499s
+
+With this patch:
+    # time semodule -B
+    real    0m5.109s
+    user    0m4.713s
+    sys     0m0.266s
+
+Signed-off-by: Petr Lautrbach <lautrbach@redhat.com>
+---
+ libsemanage/src/semanage_store.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/libsemanage/src/semanage_store.c b/libsemanage/src/semanage_store.c
+index aca8274dfa04..f02812580238 100644
+--- a/libsemanage/src/semanage_store.c
++++ b/libsemanage/src/semanage_store.c
+@@ -1741,6 +1741,7 @@ static int semanage_commit_sandbox(semanage_handle_t * sh)
+ 	    semanage_path(SEMANAGE_PREVIOUS, SEMANAGE_TOPLEVEL);
+ 	const char *sandbox = semanage_path(SEMANAGE_TMP, SEMANAGE_TOPLEVEL);
+ 	struct stat buf;
++	struct selabel_handle *sehandle;
+ 
+ 	/* update the commit number */
+ 	if ((commit_number = semanage_direct_get_serial(sh)) < 0) {
+@@ -1847,6 +1848,9 @@ static int semanage_commit_sandbox(semanage_handle_t * sh)
+ 
+       cleanup:
+ 	semanage_release_active_lock(sh);
++	sehandle = selinux_restorecon_default_handle();
++	selinux_restorecon_set_sehandle(sehandle);
++
+ 	return retval;
+ }
+ 
+@@ -3038,14 +3042,10 @@ log_callback_mute(__attribute__((unused)) int type, __attribute__((unused)) cons
+ void semanage_setfiles(const char *path){
+ 	struct stat sb;
+ 	int fd;
+-	struct selabel_handle *sehandle;
+ 
+ 	union selinux_callback cb_orig = selinux_get_callback(SELINUX_CB_LOG);
+ 	union selinux_callback cb = { .func_log = log_callback_mute };
+ 
+-	sehandle = selinux_restorecon_default_handle();
+-	selinux_restorecon_set_sehandle(sehandle);
+-
+ 	/* Mute all logs */
+ 	selinux_set_callback(SELINUX_CB_LOG, cb);
+ 
+-- 
+2.48.1
+
